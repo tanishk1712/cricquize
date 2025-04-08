@@ -4,26 +4,39 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const router = express.Router();
 
-// Register
 router.post('/register', async (req, res) => {
   try {
     const { username, password, role } = req.body;
 
+    if (!username || !password || !role) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
     const user = new User({ username, password, role });
     await user.save();
-    
+
+    // Check for JWT_SECRET before using it
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      return res.status(500).json({ error: 'JWT_SECRET is not set in the environment variables' });
+    }
+
     const token = jwt.sign(
       { userId: user._id, role: user.role },
-      process.env.JWT_SECRET,
+      jwtSecret,
       { expiresIn: '24h' }
     );
-    
+
     res.status(201).json({ token, userId: user._id });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
-
 // Login
 router.post('/login', async (req, res) => {
   try {
